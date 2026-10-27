@@ -8,6 +8,7 @@ h1{margin:0 0 4px;font-size:26px} p{color:#aab;line-height:1.5} button,select,in
 button{background:#7a2cf0;color:#fff;border:0;border-radius:10px;padding:11px 16px;cursor:pointer;min-height:44px}
 button.secondary{background:#2a2f45} button.active{background:#22c55e;color:#111}
 .transport{position:sticky;top:0;z-index:5;background:#11131a;padding:10px 0;border-bottom:1px solid #2a2f45}
+.break{flex-basis:100%;height:0}
 .grid-wrap{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border:1px solid #2a2f45;border-radius:12px;padding:10px;background:#171a26}
 .grid{display:grid;grid-template-columns:84px repeat(16,minmax(36px,1fr));gap:5px;min-width:720px}
 .cell{aspect-ratio:1;min-height:36px;border:0;border-radius:7px;background:#232744;cursor:pointer}
@@ -22,7 +23,7 @@ button.secondary{background:#2a2f45} button.active{background:#22c55e;color:#111
 input[type=range]{accent-color:#7a2cf0;min-width:120px}
 @media(max-width:600px){
  body{padding:10px} h1{font-size:22px}
- .controls{flex-direction:column;align-items:stretch} .controls label{display:flex;justify-content:space-between;gap:8px}
+ .controls{flex-direction:column;align-items:stretch} .controls label{display:flex;justify-content:space-between;gap:8px} .break{display:none}
  .swipe-hint{display:block}
  button{width:100%}
 }
@@ -31,6 +32,9 @@ input[type=range]{accent-color:#7a2cf0;min-width:120px}
 <p>A step sequencer that runs entirely in your browser. No signup, no upload. Tap a square to turn a sound on or off for that step, then press Play.</p>
 <div class="controls transport">
 <button id="play">▶ Play</button><button id="stop" class="secondary">Stop</button>
+<span class="break"></span>
+<label>Genre <select id="genre"><option>Hip Hop</option><option>Techno</option><option>House</option><option>Drum &amp; Bass</option></select></label>
+<button id="random" class="secondary">Randomize genre pattern</button>
 <label>Tempo <span id="bpmVal">120</span> BPM <input id="bpm" type="range" min="60" max="180" value="120"></label>
 <label>Swing <span id="swingVal">0%</span> <input id="swing" type="range" min="0" max="50" value="0"></label>
 <label>Volume <input id="vol" type="range" min="0" max="100" value="80"></label>
@@ -48,8 +52,6 @@ input[type=range]{accent-color:#7a2cf0;min-width:120px}
 <div class="controls">
 <label>Pattern <select id="pattern"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
 <button id="save" class="secondary">Save pattern</button>
-<label>Genre <select id="genre"><option>Hip Hop</option><option>Techno</option><option>House</option><option>Drum &amp; Bass</option></select></label>
-<button id="random" class="secondary">Randomize genre pattern</button>
 <button id="songMode" class="secondary">Song mode: off</button>
 <button id="exportRec" class="secondary">Export 2-bar recording</button>
 <a id="downloadRec" style="display:none">Download recording</a>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sound Lab</title><style>
+body{font-family:system-ui,sans-serif;background:#11131a;color:#eef1ff;margin:0;padding:16px}
+h1{margin:0 0 4px} p{color:#aab} button,select,input{font:inherit}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+button{background:#7a2cf0;color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer}
+button.secondary{background:#2a2f45} button.active{background:#22c55e;color:#111}
+.grid{display:grid;grid-template-columns:110px repeat(16,1fr);gap:4px;max-width:980px}
+.cell{aspect-ratio:1;border:0;border-radius:6px;background:#232744;cursor:pointer}
+.cell.on{background:#7a2cf0} .cell.playing{outline:3px solid #facc15}
+.label{display:flex;align-items:center;font-weight:700}
+.beat{color:#facc15;font-size:12px}
+.note{font-size:12px;color:#aab}
+input[type=range]{accent-color:#7a2cf0}
+</style></head><body>
+<h1>Sound Lab</h1>
+<p>A step sequencer that runs entirely in your browser. No signup, no upload. Tap a square to turn a sound on or off for that step, then press Play.</p>
+<div class="controls">
+<button id="play">▶ Play</button><button id="stop" class="secondary">Stop</button>
+<label>Tempo <span id="bpmVal">120</span> BPM <input id="bpm" type="range" min="60" max="180" value="120"></label>
+<label>Swing <span id="swingVal">0%</span> <input id="swing" type="range" min="0" max="50" value="0"></label>
+<label>Volume <input id="vol" type="range" min="0" max="100" value="80"></label>
+</div>
+<div class="controls">
+<label>Pattern <select id="pattern"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+<button id="save" class="secondary">Save pattern</button>
+<button id="random" class="secondary">Randomize</button>
+<button id="clear" class="secondary">Clear</button>
+<span id="status" class="note"></span>
+</div>
+<div class="grid" id="grid"></div>
+<p class="note">Tracks: Kick, Snare, Hi-hat, Clap, and a Bass synth that plays a short note pattern. Bass notes are fixed to a minor groove so it always sounds musical. Patterns A–D are saved on this device only.</p>
+<script>
+const TRACKS=[
+ {name:'Kick',fn:playKick},{name:'Snare',fn:playSnare},{name:'Hi-hat',fn:playHat},{name:'Clap',fn:playClap},{name:'Bass',fn:playBass}
+];
+const BASS_NOTES=[55,55,65.41,55,49,55,65.41,73.42,55,55,65.41,55,49,58.27,65.41,73.42];
+let ctx=null,master=null,step=0,timer=null,playing=false;
+let state={}; // pattern -> [track][16]
+function emptyPattern(){return TRACKS.map(()=>Array(16).fill(false));}
+['A','B','C','D'].forEach(p=>{try{state[p]=JSON.parse(localStorage.getItem('sl-'+p))||emptyPattern();}catch(e){state[p]=emptyPattern();}});
+const grid=document.getElementById('grid');
+function render(){
+ grid.innerHTML='';
+ TRACKS.forEach((t,ti)=>{
+   const lab=document.createElement('div');lab.className='label';lab.textContent=t.name;grid.appendChild(lab);
+   for(let s=0;s<16;s++){
+     const b=document.createElement('button');b.className='cell'+(cur()[ti][s]?' on':'')+(playing&&s===step?' playing':'');
+     b.title=t.name+' step '+(s+1);
+     b.onclick=()=>{cur()[ti][s]=!cur()[ti][s];render();};
+     grid.appendChild(b);
+   }
+ });
+}
+function cur(){return state[document.getElementById('pattern').value];}
+function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination);} if(ctx.state==='suspended')ctx.resume(); master.gain.value=document.getElementById('vol').value/100;}
+function noiseBuffer(dur){const buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return buf;}
+function env(g,t,a,peak,dec){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.001,t+dec);}
+function playKick(t){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(45,t+0.12);env(g,t,0.002,1,0.25);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.3);}
+function playSnare(t){const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.2);const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=1500;const g=ctx.createGain();env(g,t,0.002,0.7,0.18);s.connect(f);f.connect(g);g.connect(master);s.start(t);}
+function playHat(t){const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.05);const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=7000;const g=ctx.createGain();env(g,t,0.001,0.4,0.05);s.connect(f);f.connect(g);g.connect(master);s.start(t);}
+function playClap(t){[0,0.02,0.04].forEach(d=>{const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.03);const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1200;const g=ctx.createGain();env(g,t+d,0.001,0.5,0.06);s.connect(f);f.connect(g);g.connect(master);s.start(t+d);});}
+function playBass(t,s){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.value=BASS_NOTES[s];const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=500;env(g,t,0.005,0.6,0.22);o.connect(f);f.connect(g);g.connect(master);o.start(t);o.stop(t+0.25);}
+function tick(){
+ ensureAudio();const bpm=+document.getElementById('bpm').value;const swing=+document.getElementById('swing').value;
+ const base=60/bpm/4;let delay=0;if(step%2===1)delay=base*(swing/100)*0.6;
+ const t=ctx.currentTime+0.05+delay;
+ TRACKS.forEach((tr,ti)=>{if(cur()[ti][step])tr.fn(t,step);});
+ render();step=(step+1)%16;
+ timer=setTimeout(tick,base*1000);
+}
+document.getElementById('play').onclick=()=>{if(playing)return;playing=true;step=0;ensureAudio();tick();document.getElementById('play').classList.add('active');};
+document.getElementById('stop').onclick=()=>{playing=false;clearTimeout(timer);document.getElementById('play').classList.remove('active');render();};
+document.getElementById('bpm').oninput=e=>document.getElementById('bpmVal').textContent=e.target.value;
+document.getElementById('swing').oninput=e=>document.getElementById('swingVal').textContent=e.target.value+'%';
+document.getElementById('pattern').onchange=render;
+document.getElementById('save').onclick=()=>{localStorage.setItem('sl-'+document.getElementById('pattern').value,JSON.stringify(cur()));document.getElementById('status').textContent='Saved on this device.';};
+document.getElementById('clear').onclick=()=>{state[document.getElementById('pattern').value]=emptyPattern();render();};
+document.getElementById('random').onclick=()=>{const p=emptyPattern();TRACKS.forEach((_,ti)=>{for(let s=0;s<16;s++)p[ti][s]=Math.random()<(ti===0?0.35:ti===4?0.5:0.25);});state[document.getElementById('pattern').value]=p;render();};
+render();
+</script></body></html>

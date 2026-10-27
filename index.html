@@ -34,6 +34,13 @@ input[type=range]{accent-color:#7a2cf0;min-width:120px}
 <label>Swing <span id="swingVal">0%</span> <input id="swing" type="range" min="0" max="50" value="0"></label>
 <label>Volume <input id="vol" type="range" min="0" max="100" value="80"></label>
 </div>
+<div class="controls" id="mix">
+<label>Kick vol <input id="volKick" type="range" min="0" max="100" value="90"></label>
+<label>Snare vol <input id="volSnare" type="range" min="0" max="100" value="70"></label>
+<label>Hi-hat vol <input id="volHat" type="range" min="0" max="100" value="45"></label>
+<label>Clap vol <input id="volClap" type="range" min="0" max="100" value="60"></label>
+<label>Bass vol <input id="volBass" type="range" min="0" max="100" value="65"></label>
+</div>
 <div class="controls">
 <label>Pattern <select id="pattern"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
 <button id="save" class="secondary">Save pattern</button>
@@ -70,14 +77,15 @@ function render(){
  });
 }
 function cur(){return state[document.getElementById('pattern').value];}
-function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination);} if(ctx.state==='suspended')ctx.resume(); master.gain.value=document.getElementById('vol').value/100;}
+function trackVol(name){const el=document.getElementById('vol'+name.replace('-',''));return el?el.value/100:0.7;}
+function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();const comp=ctx.createDynamicsCompressor();comp.threshold.value=-18;comp.knee.value=20;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.2;master.connect(comp);comp.connect(ctx.destination);} if(ctx.state==='suspended')ctx.resume(); master.gain.value=document.getElementById('vol').value/100;}
 function noiseBuffer(dur){const buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return buf;}
 function env(g,t,a,peak,dec){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.001,t+dec);}
-function playKick(t){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(45,t+0.12);env(g,t,0.002,1,0.25);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.3);}
-function playSnare(t){const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.2);const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=1500;const g=ctx.createGain();env(g,t,0.002,0.7,0.18);s.connect(f);f.connect(g);g.connect(master);s.start(t);}
-function playHat(t){const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.05);const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=7000;const g=ctx.createGain();env(g,t,0.001,0.4,0.05);s.connect(f);f.connect(g);g.connect(master);s.start(t);}
-function playClap(t){[0,0.02,0.04].forEach(d=>{const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.03);const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1200;const g=ctx.createGain();env(g,t+d,0.001,0.5,0.06);s.connect(f);f.connect(g);g.connect(master);s.start(t+d);});}
-function playBass(t,s){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.value=BASS_NOTES[s];const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=500;env(g,t,0.005,0.6,0.22);o.connect(f);f.connect(g);g.connect(master);o.start(t);o.stop(t+0.25);}
+function playKick(t){const v=trackVol('Kick');const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(160,t);o.frequency.exponentialRampToValueAtTime(43,t+0.11);env(g,t,0.002,0.9*v,0.28);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.32);const c=ctx.createBufferSource();c.buffer=noiseBuffer(0.02);const cf=ctx.createBiquadFilter();cf.type='highpass';cf.frequency.value=3000;const cg=ctx.createGain();env(cg,t,0.001,0.25*v,0.02);c.connect(cf);cf.connect(cg);cg.connect(master);c.start(t);}
+function playSnare(t){const v=trackVol('Snare');const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.2);const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=1800;const g=ctx.createGain();env(g,t,0.002,0.55*v,0.17);s.connect(f);f.connect(g);g.connect(master);s.start(t);const o=ctx.createOscillator(),og=ctx.createGain();o.type='triangle';o.frequency.value=190;env(og,t,0.002,0.35*v,0.11);o.connect(og);og.connect(master);o.start(t);o.stop(t+0.13);}
+function playHat(t){const v=trackVol('Hat');const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.05);const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=8200;const g=ctx.createGain();env(g,t,0.001,0.28*v,0.045);s.connect(f);f.connect(g);g.connect(master);s.start(t);}
+function playClap(t){const v=trackVol('Clap');[0,0.018,0.036,0.07].forEach((d,i)=>{const s=ctx.createBufferSource();s.buffer=noiseBuffer(0.04);const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1100;f.Q.value=1.2;const g=ctx.createGain();env(g,t+d,0.001,(i===3?0.35:0.5)*v,i===3?0.22:0.05);s.connect(f);f.connect(g);g.connect(master);s.start(t+d);});}
+function playBass(t,s){const v=trackVol('Bass');const f0=BASS_NOTES[s];const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.value=f0;const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(700,t);f.frequency.exponentialRampToValueAtTime(220,t+0.2);env(g,t,0.005,0.42*v,0.24);o.connect(f);f.connect(g);g.connect(master);o.start(t);o.stop(t+0.27);const sub=ctx.createOscillator(),sg=ctx.createGain();sub.type='sine';sub.frequency.value=f0/2;env(sg,t,0.005,0.3*v,0.24);sub.connect(sg);sg.connect(master);sub.start(t);sub.stop(t+0.27);}
 function tick(){
  ensureAudio();const bpm=+document.getElementById('bpm').value;const swing=+document.getElementById('swing').value;
  const base=60/bpm/4;let delay=0;if(step%2===1)delay=base*(swing/100)*0.6;

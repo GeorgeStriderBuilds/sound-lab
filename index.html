@@ -30,7 +30,7 @@ input[type=range]{accent-color:#00f0ff;min-width:120px}
 </style></head><body>
 <h1>Sound Lab</h1>
 <p class="tagline">Browser music studio</p>
-<p>A step sequencer that runs entirely in your browser. No signup, no upload. Tap a square to turn a sound on or off for that step, then press Play.</p>
+<p>A step sequencer that runs entirely in your browser. No signup, no upload. Tap a square to turn a sound on or off for that step, then press Play, or press Randomize to hear a new pattern right away.</p>
 <div class="controls transport">
 <button id="play">▶ Play</button><button id="stop" class="secondary">Stop</button>
 <span class="break"></span>
@@ -146,6 +146,6 @@ function genrePattern(genre){
  document.getElementById('sidechain').value=genre==='Hip Hop'?45:genre==='Techno'?85:genre==='House'?80:65;
  return p;
 }
-document.getElementById('random').onclick=()=>{const genre=document.getElementById('genre').value;state[document.getElementById('pattern').value]=genrePattern(genre);document.getElementById('status').textContent=genre+' pattern, sidechain to kick on.';render();};
+document.getElementById('random').onclick=()=>{const genre=document.getElementById('genre').value;state[document.getElementById('pattern').value]=genrePattern(genre);document.getElementById('status').textContent=genre+' pattern, sidechain to kick on.';render();if(!playing)document.getElementById('play').click();};
 render();
 </script></body></html>

@@ -11,7 +11,8 @@ button.secondary{background:#2a2f45} button.active{background:#22c55e;color:#111
 .grid-wrap{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border:1px solid #2a2f45;border-radius:12px;padding:10px;background:#171a26}
 .grid{display:grid;grid-template-columns:84px repeat(16,minmax(36px,1fr));gap:5px;min-width:720px}
 .cell{aspect-ratio:1;min-height:36px;border:0;border-radius:7px;background:#232744;cursor:pointer}
-.cell.on{background:#7a2cf0} .cell.playing{outline:3px solid #facc15;outline-offset:-1px}
+.cell.on{background:#7a2cf0} .cell.accent{background:#facc15} .cell.playing{outline:3px solid #facc15;outline-offset:-1px}
+.mutebtn{font-size:11px;padding:2px 6px;min-height:24px;margin-left:4px} .mutebtn.off{background:#444}
 .cell.beat-start{box-shadow:inset 3px 0 0 #facc15}
 .label{display:flex;align-items:center;font-weight:700;font-size:14px;position:sticky;left:0;background:#171a26;z-index:2;padding-right:6px}
 .stepnum{text-align:center;font-size:12px;color:#aab;padding-bottom:4px}
@@ -41,18 +42,23 @@ input[type=range]{accent-color:#7a2cf0;min-width:120px}
 <label>Clap vol <input id="volClap" type="range" min="0" max="100" value="60"></label>
 <label>Bass vol <input id="volBass" type="range" min="0" max="100" value="65"></label>
 <label>Sidechain to kick <input id="sidechain" type="range" min="0" max="100" value="70"></label>
+<label>Low EQ <input id="eqLow" type="range" min="-12" max="12" value="0"></label>
+<label>High EQ <input id="eqHigh" type="range" min="-12" max="12" value="0"></label>
 </div>
 <div class="controls">
 <label>Pattern <select id="pattern"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
 <button id="save" class="secondary">Save pattern</button>
 <label>Genre <select id="genre"><option>Hip Hop</option><option>Techno</option><option>House</option><option>Drum &amp; Bass</option></select></label>
 <button id="random" class="secondary">Randomize genre pattern</button>
+<button id="songMode" class="secondary">Song mode: off</button>
+<button id="exportRec" class="secondary">Export 2-bar recording</button>
+<a id="downloadRec" style="display:none">Download recording</a>
 <button id="clear" class="secondary">Clear</button>
 <span id="status" class="note"></span>
 </div>
 <p class="swipe-hint">↔ Swipe sideways to see all 16 steps. Track names stay pinned on the left.</p>
 <div class="grid-wrap"><div class="grid" id="grid"></div></div>
-<p class="note">Tracks: Kick, Snare, Hi-hat, Clap, and an 808-style Bass that plays a short note pattern. Each hit is layered, lightly reverberated, and given a small random velocity change, so repeated hits do not sound like a machine gun. Bass notes are fixed to a minor groove so it always sounds musical. Patterns A–D are saved on this device only.</p>
+<p class="note">Tracks: Kick, Snare, Hi-hat, Clap, and an 808-style Bass that plays a short note pattern. Each hit is layered, lightly reverberated, and given a small random velocity change, so repeated hits do not sound like a machine gun. Tap a step once for a normal hit, twice for an accent (gold), three times to clear it. Tap M to mute a track, S to solo it. Song mode plays A, then B, then C, then D, looping. Export records 2 bars of the current pattern as an audio file you can download. Patterns A–D are saved on this device only.</p>
 <script>
 const TRACKS=[
  {name:'Kick',fn:playKick,color:'#7a2cf0'},{name:'Snare',fn:playSnare,color:'#0ea5a4'},{name:'Hi-hat',fn:playHat,color:'#d97706'},{name:'Clap',fn:playClap,color:'#ec4899'},{name:'Bass',fn:playBass,color:'#22c55e'}
@@ -68,21 +74,26 @@ function render(){
  const corner=document.createElement('div');corner.className='label';grid.appendChild(corner);
  for(let s=0;s<16;s++){const n=document.createElement('div');n.className='stepnum'+(s%4===0?' beat':'');n.textContent=s+1;grid.appendChild(n);}
  TRACKS.forEach((t,ti)=>{
-   const lab=document.createElement('div');lab.className='label';lab.textContent=t.name;grid.appendChild(lab);
+   const lab=document.createElement('div');lab.className='label';lab.textContent=t.name;
+   const mb=document.createElement('button');mb.className='mutebtn secondary'+(muted[t.name]?' off':'');mb.textContent='M';mb.title='Mute '+t.name;mb.onclick=()=>{muted[t.name]=!muted[t.name];render();};lab.appendChild(mb);
+   const sb=document.createElement('button');sb.className='mutebtn secondary'+(soloed[t.name]?'':' off');sb.textContent='S';sb.title='Solo '+t.name;sb.onclick=()=>{soloed[t.name]=!soloed[t.name];render();};lab.appendChild(sb);
+   grid.appendChild(lab);
    for(let s=0;s<16;s++){
-     const b=document.createElement('button');b.className='cell'+(cur()[ti][s]?' on':'')+(playing&&s===step?' playing':'')+(s%4===0?' beat-start':'');
-     if(cur()[ti][s])b.style.background=t.color;
-     b.title=t.name+' step '+(s+1);
-     b.onclick=()=>{cur()[ti][s]=!cur()[ti][s];render();};
+     const val=cur()[ti][s];
+     const b=document.createElement('button');b.className='cell'+(val===2?' accent':val?' on':'')+(playing&&s===step?' playing':'')+(s%4===0?' beat-start':'');
+     if(val===1)b.style.background=t.color;
+     b.title=t.name+' step '+(s+1)+(val===2?' (accent)':'');
+     b.onclick=()=>{cur()[ti][s]=val? (val===1?2:0) : 1;render();};
      grid.appendChild(b);
    }
  });
 }
 function cur(){return state[document.getElementById('pattern').value];}
-let reverb=null,bassBus=null,duckRelease=0.22;
+let reverb=null,bassBus=null,duckRelease=0.22,lowFilter=null,highFilter=null,mediaDest=null;
+let muted={},soloed={},songMode=false;
 function sidechainAmount(){const el=document.getElementById('sidechain');return el?el.value/100:0.7;}
 function trackVol(name){const el=document.getElementById('vol'+name.replace('-',''));return el?el.value/100:0.7;}
-function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();const comp=ctx.createDynamicsCompressor();comp.threshold.value=-18;comp.knee.value=20;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.2;master.connect(comp);comp.connect(ctx.destination);bassBus=ctx.createGain();bassBus.connect(master);const len=Math.floor(ctx.sampleRate*0.45);const imp=ctx.createBuffer(2,len,ctx.sampleRate);for(let ch=0;ch<2;ch++){const d=imp.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8);}reverb=ctx.createConvolver();reverb.buffer=imp;const rg=ctx.createGain();rg.gain.value=0.22;reverb.connect(rg);rg.connect(comp);window._reverbIn=reverb;} if(ctx.state==='suspended')ctx.resume(); master.gain.value=document.getElementById('vol').value/100;}
+function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();const comp=ctx.createDynamicsCompressor();comp.threshold.value=-18;comp.knee.value=20;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.2;lowFilter=ctx.createBiquadFilter();lowFilter.type='lowshelf';lowFilter.frequency.value=200;lowFilter.gain.value=+document.getElementById('eqLow').value;highFilter=ctx.createBiquadFilter();highFilter.type='highshelf';highFilter.frequency.value=4000;highFilter.gain.value=+document.getElementById('eqHigh').value;master.connect(lowFilter);lowFilter.connect(highFilter);highFilter.connect(comp);comp.connect(ctx.destination);mediaDest=ctx.createMediaStreamDestination();comp.connect(mediaDest);bassBus=ctx.createGain();bassBus.connect(master);const len=Math.floor(ctx.sampleRate*0.45);const imp=ctx.createBuffer(2,len,ctx.sampleRate);for(let ch=0;ch<2;ch++){const d=imp.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8);}reverb=ctx.createConvolver();reverb.buffer=imp;const rg=ctx.createGain();rg.gain.value=0.22;reverb.connect(rg);rg.connect(comp);window._reverbIn=reverb;} if(ctx.state==='suspended')ctx.resume(); master.gain.value=document.getElementById('vol').value/100;}
 function out(node,wet){node.connect(master);if(wet&&window._reverbIn){const s=ctx.createGain();s.gain.value=wet;node.connect(s);s.connect(window._reverbIn);}}
 function noiseBuffer(dur){const buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return buf;}
 function env(g,t,a,peak,dec){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.001,t+dec);}
@@ -96,12 +107,25 @@ function tick(){
  const base=60/bpm/4;let delay=0;if(step%2===1)delay=base*(swing/100)*0.6;
  const t=ctx.currentTime+0.05+delay;
  const vel=0.92+Math.random()*0.16;
- TRACKS.forEach((tr,ti)=>{if(cur()[ti][step])tr.fn(t,step,vel);});
+ const anySolo=TRACKS.some(tr=>soloed[tr.name]);
+ TRACKS.forEach((tr,ti)=>{const val=cur()[ti][step];if(!val)return;if(muted[tr.name])return;if(anySolo&&!soloed[tr.name])return;tr.fn(t,step,vel*(val===2?1.3:1));});
  render();step=(step+1)%16;
+ if(step===0&&songMode){const pats=['A','B','C','D'];const curP=document.getElementById('pattern').value;document.getElementById('pattern').value=pats[(pats.indexOf(curP)+1)%4];}
  timer=setTimeout(tick,base*1000);
 }
 document.getElementById('play').onclick=()=>{if(playing)return;playing=true;step=0;ensureAudio();tick();document.getElementById('play').classList.add('active');};
 document.getElementById('stop').onclick=()=>{playing=false;clearTimeout(timer);document.getElementById('play').classList.remove('active');render();};
+document.getElementById('eqLow').oninput=e=>{if(lowFilter)lowFilter.gain.value=+e.target.value;};
+document.getElementById('eqHigh').oninput=e=>{if(highFilter)highFilter.gain.value=+e.target.value;};
+document.getElementById('songMode').onclick=e=>{songMode=!songMode;e.target.textContent='Song mode: '+(songMode?'on (A→D)':'off');};
+document.getElementById('exportRec').onclick=()=>{
+ ensureAudio();if(!playing)document.getElementById('play').click();
+ const chunks=[];let rec;try{rec=new MediaRecorder(mediaDest.stream);}catch(err){document.getElementById('status').textContent='Recording is not supported in this browser.';return;}
+ rec.ondataavailable=ev=>{if(ev.data.size)chunks.push(ev.data);};
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});const a=document.getElementById('downloadRec');a.href=URL.createObjectURL(blob);a.download='sound-lab-recording.webm';a.style.display='inline';document.getElementById('status').textContent='Recording ready to download.';};
+ rec.start();const barMs=(60/+document.getElementById('bpm').value)*4*1000;document.getElementById('status').textContent='Recording 2 bars…';
+ setTimeout(()=>{try{rec.stop();}catch(e){}},barMs*2+150);
+};
 document.getElementById('bpm').oninput=e=>document.getElementById('bpmVal').textContent=e.target.value;
 document.getElementById('swing').oninput=e=>document.getElementById('swingVal').textContent=e.target.value+'%';
 document.getElementById('pattern').onchange=render;

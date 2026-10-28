@@ -57,7 +57,7 @@ input[type=range]{accent-color:#00f0ff;min-width:120px}
 <button id="exportRec" class="secondary">Export 2-bar recording</button>
 <a id="downloadRec" style="display:none">Download recording</a>
 <button id="clear" class="secondary">Clear</button>
-<span id="status" class="note"></span>
+<span id="status" class="note"></span><span id="dirty" class="note" style="color:#facc15"></span>
 </div>
 <p class="swipe-hint">↔ Swipe sideways to see all 16 steps. Track names stay pinned on the left.</p>
 <div class="grid-wrap"><div class="grid" id="grid"></div></div>
@@ -71,6 +71,8 @@ let ctx=null,master=null,step=0,timer=null,playing=false;
 let state={}; // pattern -> [track][16]
 function emptyPattern(){return TRACKS.map(()=>Array(16).fill(false));}
 ['A','B','C','D'].forEach(p=>{try{state[p]=JSON.parse(localStorage.getItem('sl-'+p))||emptyPattern();}catch(e){state[p]=emptyPattern();}});
+function markDirty(){const el=document.getElementById('dirty');if(el)el.textContent='Unsaved changes.';}
+function markSaved(){const el=document.getElementById('dirty');if(el)el.textContent='';}
 const grid=document.getElementById('grid');
 function render(){
  grid.innerHTML='';
@@ -86,7 +88,8 @@ function render(){
      const b=document.createElement('button');b.className='cell'+(val===2?' accent':val?' on':'')+(playing&&s===step?' playing':'')+(s%4===0?' beat-start':'');
      if(val===1)b.style.background=t.color;
      b.title=t.name+' step '+(s+1)+(val===2?' (accent)':'');
-     b.onclick=()=>{cur()[ti][s]=val? (val===1?2:0) : 1;render();};
+     b.onclick=()=>{cur()[ti][s]=val? (val===1?2:0) : 1;markDirty();render();};
+     b.setAttribute('aria-label', t.name+' step '+(s+1)+(val===2?' accent':val?' on':' off'));
      grid.appendChild(b);
    }
  });
@@ -125,14 +128,14 @@ document.getElementById('exportRec').onclick=()=>{
  ensureAudio();if(!playing)document.getElementById('play').click();
  const chunks=[];let rec;try{rec=new MediaRecorder(mediaDest.stream);}catch(err){document.getElementById('status').textContent='Recording is not supported in this browser.';return;}
  rec.ondataavailable=ev=>{if(ev.data.size)chunks.push(ev.data);};
- rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});const a=document.getElementById('downloadRec');a.href=URL.createObjectURL(blob);a.download='sound-lab-recording.webm';a.style.display='inline';document.getElementById('status').textContent='Recording ready to download.';};
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});const ext=(rec.mimeType||'').includes('mp4')?'mp4':'webm';const a=document.getElementById('downloadRec');a.href=URL.createObjectURL(blob);a.download='sound-lab-recording.'+ext;a.style.display='inline';document.getElementById('status').textContent='Recording ready to download.';};
  rec.start();const barMs=(60/+document.getElementById('bpm').value)*4*1000;document.getElementById('status').textContent='Recording 2 bars…';
  setTimeout(()=>{try{rec.stop();}catch(e){}},barMs*2+150);
 };
 document.getElementById('bpm').oninput=e=>document.getElementById('bpmVal').textContent=e.target.value;
 document.getElementById('swing').oninput=e=>document.getElementById('swingVal').textContent=e.target.value+'%';
 document.getElementById('pattern').onchange=render;
-document.getElementById('save').onclick=()=>{localStorage.setItem('sl-'+document.getElementById('pattern').value,JSON.stringify(cur()));document.getElementById('status').textContent='Saved on this device.';};
+document.getElementById('save').onclick=()=>{try{localStorage.setItem('sl-'+document.getElementById('pattern').value,JSON.stringify(cur()));}catch(e){}markSaved();document.getElementById('status').textContent='Saved on this device.';};
 document.getElementById('clear').onclick=()=>{state[document.getElementById('pattern').value]=emptyPattern();render();};
 function setSlider(id,val,displayId,displaySuffix){const el=document.getElementById(id);el.value=val;if(displayId)document.getElementById(displayId).textContent=val+(displaySuffix||'');}
 function setVol(id,val){document.getElementById(id).value=val;}

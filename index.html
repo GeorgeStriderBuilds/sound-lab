@@ -202,10 +202,10 @@ function tick(){
   if(chainMode){
    chainIndex++;
    if(chainIndex>=chain.length){
-    if(document.getElementById('chainLoop').checked){chainIndex=0;document.getElementById('pattern').value=chain[chainIndex];render();}
+    if(document.getElementById('chainLoop').checked){chainIndex=0;document.getElementById('pattern').value=chain[chainIndex];applySoundForPattern(chain[chainIndex]);render();}
     else{chainMode=false;playing=false;document.getElementById('play').classList.remove('active');document.getElementById('status').textContent='Chain finished.';render();return;}
-   } else {document.getElementById('pattern').value=chain[chainIndex];render();}
-  } else if(songMode){const pats=['A','B','C','D'];const curP=document.getElementById('pattern').value;document.getElementById('pattern').value=pats[(pats.indexOf(curP)+1)%4];render();}
+   } else {document.getElementById('pattern').value=chain[chainIndex];applySoundForPattern(chain[chainIndex]);render();}
+  } else if(songMode){const pats=['A','B','C','D'];const curP=document.getElementById('pattern').value;document.getElementById('pattern').value=pats[(pats.indexOf(curP)+1)%4];applySoundForPattern(document.getElementById('pattern').value);render();}
  }
  timer=setTimeout(tick,base*1000);
 }
@@ -224,10 +224,16 @@ document.getElementById('exportRec').onclick=()=>{
 };
 document.getElementById('bpm').oninput=e=>document.getElementById('bpmVal').textContent=e.target.value;
 document.getElementById('swing').oninput=e=>document.getElementById('swingVal').textContent=e.target.value+'%';
-document.getElementById('pattern').onchange=render;
+// --- Sound saved with the pattern (per pattern, this device only) ---
+const SOUND_VOL_IDS=['volKick','volSnare','volHat','volClap','volBass','volOpenHat','volRim','volTom'];
+function soundSettings(){const vols={};SOUND_VOL_IDS.forEach(id=>{const el=document.getElementById(id);if(el)vols[id]=+el.value;});return {kit:kitSel(),bass:bassSel(),bpm:+document.getElementById('bpm').value,swing:+document.getElementById('swing').value,vol:+document.getElementById('vol').value,vols:vols,sidechain:+document.getElementById('sidechain').value,eqLow:+document.getElementById('eqLow').value,eqHigh:+document.getElementById('eqHigh').value};}
+function loadSound(pat){try{const s=JSON.parse(localStorage.getItem('sl-sound-'+pat));return (s&&typeof s==='object')?s:null;}catch(e){return null;}}
+function applySound(s){if(!s)return;const kitEl=document.getElementById('kit');if(kitEl&&s.kit)kitEl.value=s.kit;const bassEl=document.getElementById('bassMode');if(bassEl&&s.bass)bassEl.value=s.bass;if(typeof s.bpm==='number')setSlider('bpm',s.bpm,'bpmVal');if(typeof s.swing==='number')setSlider('swing',s.swing,'swingVal','%');if(typeof s.vol==='number')document.getElementById('vol').value=s.vol;if(s.vols)SOUND_VOL_IDS.forEach(id=>{if(typeof s.vols[id]==='number')setVol(id,s.vols[id]);});if(typeof s.sidechain==='number')document.getElementById('sidechain').value=s.sidechain;if(typeof s.eqLow==='number'){document.getElementById('eqLow').value=s.eqLow;if(lowFilter)lowFilter.gain.value=s.eqLow;}if(typeof s.eqHigh==='number'){document.getElementById('eqHigh').value=s.eqHigh;if(highFilter)highFilter.gain.value=s.eqHigh;}updateKitNote();}
+function applySoundForPattern(pat){applySound(loadSound(pat));}
+document.getElementById('pattern').onchange=()=>{applySoundForPattern(document.getElementById('pattern').value);render();};
 document.getElementById('kit').onchange=updateKitNote;
 document.getElementById('bassMode').onchange=updateKitNote;
-document.getElementById('save').onclick=()=>{const pat=document.getElementById('pattern').value;try{localStorage.setItem('sl-'+pat,JSON.stringify(cur()));localStorage.setItem('sl-notes-'+pat,JSON.stringify(bassNotes[pat]));}catch(e){}markSaved();document.getElementById('status').textContent='Saved on this device.';};
+document.getElementById('save').onclick=()=>{const pat=document.getElementById('pattern').value;try{localStorage.setItem('sl-'+pat,JSON.stringify(cur()));localStorage.setItem('sl-notes-'+pat,JSON.stringify(bassNotes[pat]));localStorage.setItem('sl-sound-'+pat,JSON.stringify(soundSettings()));}catch(e){}markSaved();document.getElementById('status').textContent='Saved on this device.';};
 document.getElementById('clear').onclick=()=>{state[document.getElementById('pattern').value]=emptyPattern();render();};
 function setSlider(id,val,displayId,displaySuffix){const el=document.getElementById(id);el.value=val;if(displayId)document.getElementById(displayId).textContent=val+(displaySuffix||'');}
 function setVol(id,val){document.getElementById(id).value=val;}
@@ -268,7 +274,7 @@ function refreshChain(){document.getElementById('chainDisplay').textContent=chai
 ['A','B','C','D'].forEach(letter=>{document.getElementById('chain'+letter).onclick=()=>{chain.push(letter);refreshChain();};});
 document.getElementById('chainUndo').onclick=()=>{chain.pop();refreshChain();};
 document.getElementById('chainClear').onclick=()=>{chain=[];refreshChain();};
-document.getElementById('chainPlay').onclick=()=>{if(!chain.length){document.getElementById('status').textContent='Add at least one pattern to the chain first.';return;}chainMode=true;songMode=false;document.getElementById('songMode').textContent='Song mode: off';chainIndex=0;document.getElementById('pattern').value=chain[0];step=0;render();if(!playing){playing=true;ensureAudio();tick();document.getElementById('play').classList.add('active');}document.getElementById('status').textContent='Playing chain: '+chain.join(' → ')+'.';};
+document.getElementById('chainPlay').onclick=()=>{if(!chain.length){document.getElementById('status').textContent='Add at least one pattern to the chain first.';return;}chainMode=true;songMode=false;document.getElementById('songMode').textContent='Song mode: off';chainIndex=0;document.getElementById('pattern').value=chain[0];applySoundForPattern(chain[0]);step=0;render();if(!playing){playing=true;ensureAudio();tick();document.getElementById('play').classList.add('active');}document.getElementById('status').textContent='Playing chain: '+chain.join(' → ')+'.';};
 // --- MIDI export ---
 function vlq(n){let bytes=[n&0x7f];n>>=7;while(n){bytes.unshift(0x80|(n&0x7f));n>>=7;}return bytes;}
 function midiBytes(){
@@ -285,5 +291,6 @@ function midiBytes(){
  return new Uint8Array(out);
 }
 document.getElementById('exportMidi').onclick=()=>{const blob=new Blob([midiBytes()],{type:'audio/midi'});const a=document.getElementById('downloadMidi');a.href=URL.createObjectURL(blob);a.download='sound-lab-pattern-'+document.getElementById('pattern').value+'.mid';a.style.display='inline';a.click();document.getElementById('status').textContent='MIDI downloaded for pattern '+document.getElementById('pattern').value+'.';};
+applySoundForPattern(document.getElementById('pattern').value);
 render();
 </script></body></html>

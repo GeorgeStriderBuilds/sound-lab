@@ -12,7 +12,7 @@ button.secondary{background:rgba(8,20,32,.9);color:#e6fbff;border:1px solid #123
 .grid-wrap{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border:1px solid #00f0ff;border-radius:12px;padding:10px;background:rgba(8,20,32,.92);box-shadow:0 0 22px rgba(0,240,255,.22),inset 0 0 0 1px rgba(255,46,136,.25)}
 .grid{display:grid;grid-template-columns:84px repeat(16,minmax(36px,1fr));gap:5px;min-width:720px}
 .cell{aspect-ratio:1;min-height:36px;border:0;border-radius:7px;background:#0a1420;cursor:pointer;box-shadow:inset 0 0 0 1px #123a4a}
-.cell.on{box-shadow:0 0 12px rgba(0,240,255,.55)} .cell.accent{background:#facc15} .cell.playing{outline:3px solid #facc15;outline-offset:-1px}
+.cell.on{box-shadow:0 0 14px rgba(0,240,255,.7);outline:2px solid #ffffff;outline-offset:-2px} .cell.accent{background:#facc15;outline:2px solid #ffffff;outline-offset:-2px} .cell.playing{outline:3px solid #facc15;outline-offset:-1px}
 .mutebtn{font-size:11px;padding:2px 6px;min-height:24px;margin-left:4px} .mutebtn.off{background:#444}
 .cell.beat-start{box-shadow:inset 3px 0 0 #facc15}
 .label{display:flex;align-items:center;font-weight:700;font-size:14px;position:sticky;left:0;background:#0a1420;z-index:2;padding-right:6px;color:#e6fbff}
@@ -57,7 +57,7 @@ input[type=range]{accent-color:#00f0ff;min-width:120px}
 <button id="exportRec" class="secondary">Export 2-bar recording</button>
 <a id="downloadRec" style="display:none">Download recording</a>
 <button id="clear" class="secondary">Clear</button>
-<span id="status" class="note"></span><span id="dirty" class="note" style="color:#facc15"></span>
+<span id="status" class="note"></span><span id="dirty" class="note" style="color:#facc15"></span><span id="selCount" class="note"></span>
 </div>
 <p class="swipe-hint">↔ Swipe sideways to see all 16 steps. Track names stay pinned on the left.</p>
 <div class="grid-wrap"><div class="grid" id="grid"></div></div>
@@ -74,7 +74,11 @@ function emptyPattern(){return TRACKS.map(()=>Array(16).fill(false));}
 function markDirty(){const el=document.getElementById('dirty');if(el)el.textContent='Unsaved changes.';}
 function markSaved(){const el=document.getElementById('dirty');if(el)el.textContent='';}
 const grid=document.getElementById('grid');
+function updatePlaying(){
+ document.querySelectorAll('.cell').forEach((c,i)=>{c.classList.toggle('playing', (i%16)===step);});
+}
 function render(){
+ const sel=document.getElementById('selCount');if(sel){let n=0;cur().forEach(tr=>tr.forEach(v=>{if(v)n++;}));sel.textContent=n+' pads selected in pattern '+document.getElementById('pattern').value+'. Tap a pad to turn it on, tap again for accent, tap again to clear it.';}
  grid.innerHTML='';
  const corner=document.createElement('div');corner.className='label';grid.appendChild(corner);
  for(let s=0;s<16;s++){const n=document.createElement('div');n.className='stepnum'+(s%4===0?' beat':'');n.textContent=s+1;grid.appendChild(n);}
@@ -115,8 +119,8 @@ function tick(){
  const vel=0.92+Math.random()*0.16;
  const anySolo=TRACKS.some(tr=>soloed[tr.name]);
  TRACKS.forEach((tr,ti)=>{const val=cur()[ti][step];if(!val)return;if(muted[tr.name])return;if(anySolo&&!soloed[tr.name])return;tr.fn(t,step,vel*(val===2?1.3:1));});
- render();step=(step+1)%16;
- if(step===0&&songMode){const pats=['A','B','C','D'];const curP=document.getElementById('pattern').value;document.getElementById('pattern').value=pats[(pats.indexOf(curP)+1)%4];}
+ updatePlaying();step=(step+1)%16;
+ if(step===0&&songMode){const pats=['A','B','C','D'];const curP=document.getElementById('pattern').value;document.getElementById('pattern').value=pats[(pats.indexOf(curP)+1)%4];render();}
  timer=setTimeout(tick,base*1000);
 }
 document.getElementById('play').onclick=()=>{if(playing)return;playing=true;step=0;ensureAudio();tick();document.getElementById('play').classList.add('active');};
@@ -149,6 +153,6 @@ function genrePattern(genre){
  document.getElementById('sidechain').value=genre==='Hip Hop'?45:genre==='Techno'?85:genre==='House'?80:65;
  return p;
 }
-document.getElementById('random').onclick=()=>{const genre=document.getElementById('genre').value;state[document.getElementById('pattern').value]=genrePattern(genre);document.getElementById('status').textContent=genre+' pattern, sidechain to kick on.';render();if(!playing)document.getElementById('play').click();};
+document.getElementById('random').onclick=()=>{const genre=document.getElementById('genre').value;state[document.getElementById('pattern').value]=genrePattern(genre);document.getElementById('status').textContent=genre+' pattern, sidechain to kick on.';markDirty();render();if(!playing)document.getElementById('play').click();};
 render();
 </script></body></html>

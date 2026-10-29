@@ -5,7 +5,7 @@
 body{font-family:system-ui,sans-serif;background-color:#04070d;background-image:linear-gradient(rgba(0,240,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(0,240,255,.06) 1px,transparent 1px),radial-gradient(600px 300px at 15% 0%,rgba(255,46,136,.18),transparent 60%),radial-gradient(600px 300px at 85% 20%,rgba(0,240,255,.16),transparent 60%);background-size:44px 44px,44px 44px,auto,auto;background-attachment:fixed;color:#e6fbff;margin:0;padding:16px}
 h1{margin:0 0 2px;font-size:26px;text-transform:uppercase;letter-spacing:2px;text-shadow:0 0 18px rgba(0,240,255,.65),2px 0 #ff2e88,-2px 0 #00f0ff} .tagline{color:#9fd8e2;letter-spacing:4px;font-size:12px;font-weight:700;margin:0 0 8px} p{color:#9fd8e2;line-height:1.5} button,select,input{font:inherit}
 .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
-button{background:linear-gradient(135deg,#ff2e88,#00f0ff);color:#02131a;border:0;border-radius:10px;padding:11px 16px;cursor:pointer;min-height:44px;font-weight:700;box-shadow:0 0 14px rgba(0,240,255,.35)}
+button{background:linear-gradient(135deg,#ff2e88,#00f0ff);color:#02131a;border:0;border-radius:10px;padding:11px 16px;cursor:pointer;min-height:48px;font-weight:700;box-shadow:0 0 14px rgba(0,240,255,.35)}
 button.secondary{background:rgba(8,20,32,.9);color:#e6fbff;border:1px solid #123a4a;box-shadow:none} button.active{background:#00f0ff;color:#02131a}
 .transport{position:sticky;top:0;z-index:5;background:#04070d;padding:10px 0;border-bottom:1px solid #123a4a}
 .break{flex-basis:100%;height:0}
@@ -94,7 +94,7 @@ input[type=range]{accent-color:#00f0ff;min-width:120px}
 <button id="chainUndo" class="secondary">Remove last</button><button id="chainClear" class="secondary">Clear chain</button>
 <label>Loop chain <input id="chainLoop" type="checkbox"></label>
 <button id="chainPlay" class="secondary">Play chain</button>
-<span id="chainDisplay" class="note">Chain: (empty — add patterns above)</span>
+<span id="chainDisplay" class="note">Chain: (empty. Add patterns above.)</span>
 </div>
 <p class="note">Tracks: Kick, Snare, Hi-hat, Clap, and a Bass that plays a short note pattern. Kit switches the drum character (Classic, 808-style, 909-style) and Bass switches between 808-style and Acid 303-style; both work with any pattern, and Randomize keeps your Kit and Bass choices. Each hit is layered, lightly reverberated, and given a small random velocity change, so repeated hits do not sound like a machine gun. Tap a step once for a normal hit, twice for an accent (gold), three times to clear it. Tap M to mute a track, S to solo it. Song mode plays A, then B, then C, then D, looping. Export records 2 bars of the current pattern as an audio file you can download. Patterns A–D are saved on this device only.</p>
 <script>
@@ -121,8 +121,11 @@ const grid=document.getElementById('grid');
 function updatePlaying(){
  document.querySelectorAll('.cell').forEach((c,i)=>{c.classList.toggle('playing', (i%16)===step);});
 }
-function render(){
+function updateSelCount(){
  const sel=document.getElementById('selCount');if(sel){let n=0;cur().forEach(tr=>tr.forEach(v=>{if(v)n++;}));sel.textContent=n+' pads selected in pattern '+document.getElementById('pattern').value+'. Tap a pad to turn it on, tap again for accent, tap again to clear it.';}
+}
+function render(){
+ updateSelCount();
  updateKitNote();
  syncBassEditor();
  grid.innerHTML='';
@@ -134,12 +137,11 @@ function render(){
    const sb=document.createElement('button');sb.className='mutebtn secondary'+(soloed[t.name]?'':' off');sb.textContent='S';sb.title='Solo '+t.name;sb.onclick=()=>{soloed[t.name]=!soloed[t.name];render();};lab.appendChild(sb);
    grid.appendChild(lab);
    for(let s=0;s<16;s++){
-     const val=cur()[ti][s];
-     const b=document.createElement('button');b.className='cell'+(val===2?' accent':val?' on':'')+(playing&&s===step?' playing':'')+(s%4===0?' beat-start':'');
-     if(val===1)b.style.background=t.color;
-     b.title=t.name+' step '+(s+1)+(val===2?' (accent)':'');
-     b.onclick=()=>{cur()[ti][s]=val? (val===1?2:0) : 1;markDirty();render();};
-     b.setAttribute('aria-label', t.name+' step '+(s+1)+(val===2?' accent':val?' on':' off'));
+     let val=cur()[ti][s];
+     const b=document.createElement('button');
+     const paint=()=>{b.className='cell'+(val===2?' accent':val?' on':'')+(playing&&s===step?' playing':'')+(s%4===0?' beat-start':'');b.style.background=val===1?t.color:'';b.title=t.name+' step '+(s+1)+(val===2?' (accent)':'');b.setAttribute('aria-label',t.name+' step '+(s+1)+(val===2?' accent':val?' on':' off'));};
+     paint();
+     b.onclick=()=>{val=val?(val===1?2:0):1;cur()[ti][s]=val;markDirty();paint();updateSelCount();};
      grid.appendChild(b);
    }
  });
@@ -151,6 +153,7 @@ function sidechainAmount(){const el=document.getElementById('sidechain');return 
 function trackVol(name){const el=document.getElementById('vol'+name.replace('-',''));return el?el.value/100:0.7;}
 function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();const comp=ctx.createDynamicsCompressor();comp.threshold.value=-18;comp.knee.value=20;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.2;lowFilter=ctx.createBiquadFilter();lowFilter.type='lowshelf';lowFilter.frequency.value=200;lowFilter.gain.value=+document.getElementById('eqLow').value;highFilter=ctx.createBiquadFilter();highFilter.type='highshelf';highFilter.frequency.value=4000;highFilter.gain.value=+document.getElementById('eqHigh').value;master.connect(lowFilter);lowFilter.connect(highFilter);highFilter.connect(comp);comp.connect(ctx.destination);mediaDest=ctx.createMediaStreamDestination();comp.connect(mediaDest);bassBus=ctx.createGain();bassBus.connect(master);const len=Math.floor(ctx.sampleRate*0.45);const imp=ctx.createBuffer(2,len,ctx.sampleRate);for(let ch=0;ch<2;ch++){const d=imp.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8);}reverb=ctx.createConvolver();reverb.buffer=imp;const rg=ctx.createGain();rg.gain.value=0.22;reverb.connect(rg);rg.connect(comp);window._reverbIn=reverb;} if(ctx.state==='suspended')ctx.resume(); master.gain.value=document.getElementById('vol').value/100;}
 function out(node,wet){node.connect(master);if(wet&&window._reverbIn){const s=ctx.createGain();s.gain.value=wet;node.connect(s);s.connect(window._reverbIn);}}
+function smoothAudioParam(param,val){if(!param)return;try{if(ctx&&typeof param.setTargetAtTime==='function')param.setTargetAtTime(val,ctx.currentTime,0.03);else param.value=val;}catch(e){param.value=val;}}
 function noiseBuffer(dur){const buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return buf;}
 function env(g,t,a,peak,dec){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.001,t+dec);}
 function kitSel(){const el=document.getElementById('kit');return el?el.value:'Classic';}
@@ -226,15 +229,17 @@ document.getElementById('bpm').oninput=e=>document.getElementById('bpmVal').text
 document.getElementById('swing').oninput=e=>document.getElementById('swingVal').textContent=e.target.value+'%';
 // --- Sound saved with the pattern (per pattern, this device only) ---
 const SOUND_VOL_IDS=['volKick','volSnare','volHat','volClap','volBass','volOpenHat','volRim','volTom'];
-function soundSettings(){const vols={};SOUND_VOL_IDS.forEach(id=>{const el=document.getElementById(id);if(el)vols[id]=+el.value;});return {kit:kitSel(),bass:bassSel(),bpm:+document.getElementById('bpm').value,swing:+document.getElementById('swing').value,vol:+document.getElementById('vol').value,vols:vols,sidechain:+document.getElementById('sidechain').value,eqLow:+document.getElementById('eqLow').value,eqHigh:+document.getElementById('eqHigh').value};}
+function soundSettings(){const vols={};SOUND_VOL_IDS.forEach(id=>{const el=document.getElementById(id);if(el)vols[id]=+el.value;});return {kit:kitSel(),bass:bassSel(),bpm:+document.getElementById('bpm').value,swing:+document.getElementById('swing').value,vol:+document.getElementById('vol').value,vols:vols,sidechain:+document.getElementById('sidechain').value,eqLow:+document.getElementById('eqLow').value,eqHigh:+document.getElementById('eqHigh').value,duckRelease:duckRelease};}
 function loadSound(pat){try{const s=JSON.parse(localStorage.getItem('sl-sound-'+pat));return (s&&typeof s==='object')?s:null;}catch(e){return null;}}
-function applySound(s){if(!s)return;const kitEl=document.getElementById('kit');if(kitEl&&s.kit)kitEl.value=s.kit;const bassEl=document.getElementById('bassMode');if(bassEl&&s.bass)bassEl.value=s.bass;if(typeof s.bpm==='number')setSlider('bpm',s.bpm,'bpmVal');if(typeof s.swing==='number')setSlider('swing',s.swing,'swingVal','%');if(typeof s.vol==='number')document.getElementById('vol').value=s.vol;if(s.vols)SOUND_VOL_IDS.forEach(id=>{if(typeof s.vols[id]==='number')setVol(id,s.vols[id]);});if(typeof s.sidechain==='number')document.getElementById('sidechain').value=s.sidechain;if(typeof s.eqLow==='number'){document.getElementById('eqLow').value=s.eqLow;if(lowFilter)lowFilter.gain.value=s.eqLow;}if(typeof s.eqHigh==='number'){document.getElementById('eqHigh').value=s.eqHigh;if(highFilter)highFilter.gain.value=s.eqHigh;}updateKitNote();}
+function applySound(s){if(!s)return;const kitEl=document.getElementById('kit');if(kitEl&&s.kit)kitEl.value=s.kit;const bassEl=document.getElementById('bassMode');if(bassEl&&s.bass)bassEl.value=s.bass;if(typeof s.bpm==='number')setSlider('bpm',s.bpm,'bpmVal');if(typeof s.swing==='number')setSlider('swing',s.swing,'swingVal','%');if(typeof s.vol==='number')document.getElementById('vol').value=s.vol;if(s.vols)SOUND_VOL_IDS.forEach(id=>{if(typeof s.vols[id]==='number')setVol(id,s.vols[id]);});if(typeof s.sidechain==='number')document.getElementById('sidechain').value=s.sidechain;if(typeof s.eqLow==='number'){document.getElementById('eqLow').value=s.eqLow;if(lowFilter)smoothAudioParam(lowFilter.gain,s.eqLow);}if(typeof s.eqHigh==='number'){document.getElementById('eqHigh').value=s.eqHigh;if(highFilter)smoothAudioParam(highFilter.gain,s.eqHigh);}if(typeof s.duckRelease==='number')duckRelease=s.duckRelease;updateKitNote();}
 function applySoundForPattern(pat){applySound(loadSound(pat));}
 document.getElementById('pattern').onchange=()=>{applySoundForPattern(document.getElementById('pattern').value);render();};
 document.getElementById('kit').onchange=updateKitNote;
 document.getElementById('bassMode').onchange=updateKitNote;
+['kit','bassMode','bpm','swing','vol','sidechain','eqLow','eqHigh'].concat(SOUND_VOL_IDS).forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',markDirty);el.addEventListener('change',markDirty);}});
 document.getElementById('save').onclick=()=>{const pat=document.getElementById('pattern').value;try{localStorage.setItem('sl-'+pat,JSON.stringify(cur()));localStorage.setItem('sl-notes-'+pat,JSON.stringify(bassNotes[pat]));localStorage.setItem('sl-sound-'+pat,JSON.stringify(soundSettings()));}catch(e){}markSaved();document.getElementById('status').textContent='Saved on this device.';};
-document.getElementById('clear').onclick=()=>{state[document.getElementById('pattern').value]=emptyPattern();render();};
+function armConfirm(btn,fn){if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=btn.dataset.orig;delete btn.dataset.orig;fn();}else{btn.dataset.armed='1';btn.dataset.orig=btn.textContent;btn.textContent='Tap again to confirm';setTimeout(()=>{if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=btn.dataset.orig;delete btn.dataset.orig;}},3000);}}
+document.getElementById('clear').onclick=e=>armConfirm(e.currentTarget,()=>{state[document.getElementById('pattern').value]=emptyPattern();markDirty();render();document.getElementById('status').textContent='Pattern cleared. Save to keep it.';});
 function setSlider(id,val,displayId,displaySuffix){const el=document.getElementById(id);el.value=val;if(displayId)document.getElementById(displayId).textContent=val+(displaySuffix||'');}
 function setVol(id,val){document.getElementById(id).value=val;}
 function genrePattern(genre){
@@ -260,20 +265,20 @@ document.getElementById('bassStep').onchange=syncBassEditor;
 document.getElementById('setBassNote').onclick=()=>{const s=parseInt(document.getElementById('bassStep').value,10)-1;bassNotes[document.getElementById('pattern').value][s]=parseFloat(bassNoteSel.value);markDirty();document.getElementById('status').textContent='Bass step '+(s+1)+' set to '+noteName(bassNotes[document.getElementById('pattern').value][s])+'. Save pattern to keep it.';};
 // --- Live pads ---
 const liveWrap=document.getElementById('livePads');
-TRACKS.forEach((tr,ti)=>{const b=document.createElement('button');b.className='livepad secondary';b.textContent=tr.name;b.onclick=()=>{ensureAudio();const anySolo=TRACKS.some(x=>soloed[x.name]);if(muted[tr.name])return;if(anySolo&&!soloed[tr.name])return;playTrackSound(ti,ctx.currentTime,0,1);};liveWrap.appendChild(b);});
+TRACKS.forEach((tr,ti)=>{const b=document.createElement('button');b.className='livepad secondary';b.textContent=tr.name;b.onclick=()=>{ensureAudio();const anySolo=TRACKS.some(x=>soloed[x.name]);if(muted[tr.name]){document.getElementById('status').textContent=tr.name+' is muted. Tap M on its row to unmute.';return;}if(anySolo&&!soloed[tr.name]){document.getElementById('status').textContent=tr.name+' is not in the solo. Tap S on its row to include it.';return;}playTrackSound(ti,ctx.currentTime,0,1);};liveWrap.appendChild(b);});
 // --- Samples, session only ---
 const sampleTrackSel=document.getElementById('sampleTrack');
 TRACKS.forEach(tr=>{const o=document.createElement('option');o.value=tr.name;o.textContent=tr.name;sampleTrackSel.appendChild(o);});
-function refreshSampleStatus(){const el=document.getElementById('sampleStatus');const names=Object.keys(sampleBuffers);el.textContent=names.length?('Loaded samples (this session only): '+names.join(', ')+'.'):'No samples loaded — all tracks use their synth sounds.';}
+function refreshSampleStatus(){const el=document.getElementById('sampleStatus');const names=Object.keys(sampleBuffers);el.textContent=names.length?('Loaded samples (this session only): '+names.join(', ')+'.'):'No samples loaded. Every track is on its synth sound.';}
 document.getElementById('sampleFile').onchange=async ev=>{const file=ev.target.files[0];if(!file)return;ev.target.value='';ensureAudio();try{const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf);sampleBuffers[sampleTrackSel.value]=decoded;document.getElementById('status').textContent=file.name+' loaded for '+sampleTrackSel.value+' (this session only).';}catch(err){document.getElementById('status').textContent='Could not load that WAV file.';}refreshSampleStatus();};
 document.getElementById('sampleReset').onclick=()=>{delete sampleBuffers[sampleTrackSel.value];document.getElementById('status').textContent=sampleTrackSel.value+' back to its synth sound.';refreshSampleStatus();};
 refreshSampleStatus();
 // --- Song chain ---
 let chain=[],chainMode=false,chainIndex=0;
-function refreshChain(){document.getElementById('chainDisplay').textContent=chain.length?('Chain: '+chain.join(' → ')):('Chain: (empty — add patterns above)');}
+function refreshChain(){document.getElementById('chainDisplay').textContent=chain.length?('Chain: '+chain.join(' → ')):('Chain: (empty. Add patterns above.)');}
 ['A','B','C','D'].forEach(letter=>{document.getElementById('chain'+letter).onclick=()=>{chain.push(letter);refreshChain();};});
 document.getElementById('chainUndo').onclick=()=>{chain.pop();refreshChain();};
-document.getElementById('chainClear').onclick=()=>{chain=[];refreshChain();};
+document.getElementById('chainClear').onclick=e=>armConfirm(e.currentTarget,()=>{chain=[];refreshChain();document.getElementById('status').textContent='Chain cleared.';});
 document.getElementById('chainPlay').onclick=()=>{if(!chain.length){document.getElementById('status').textContent='Add at least one pattern to the chain first.';return;}chainMode=true;songMode=false;document.getElementById('songMode').textContent='Song mode: off';chainIndex=0;document.getElementById('pattern').value=chain[0];applySoundForPattern(chain[0]);step=0;render();if(!playing){playing=true;ensureAudio();tick();document.getElementById('play').classList.add('active');}document.getElementById('status').textContent='Playing chain: '+chain.join(' → ')+'.';};
 // --- MIDI export ---
 function vlq(n){let bytes=[n&0x7f];n>>=7;while(n){bytes.unshift(0x80|(n&0x7f));n>>=7;}return bytes;}
